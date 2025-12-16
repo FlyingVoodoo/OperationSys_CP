@@ -1,0 +1,16 @@
+.DS_Store
+build/
+*.o
+*.a
+*.so
+*.dylib
+server/server
+client/client
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.swp
+*.swo
+*~
+OS_CP/
