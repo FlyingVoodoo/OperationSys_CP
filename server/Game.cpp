@@ -1,22 +1,26 @@
 #include "Game.hpp"
-#include <algorithm>
 #include <sstream>
-#include <iomanip>
 
 Game::Game(GameData* data) : data(data) {
 }
 
 std::string Game::generate_secret() {
-    std::vector<int> digits = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    std::vector<std::string> words = {
+        "apple", "beach", "chair", "dance", "earth",
+        "flame", "grace", "house", "image", "juice",
+        "knife", "lemon", "music", "night", "ocean",
+        "pearl", "queen", "river", "stone", "table",
+        "unity", "voice", "water", "youth", "zebra",
+        "bread", "cloud", "dream", "field", "globe",
+        "heart", "light", "magic", "paint", "smile",
+        "storm", "tiger", "tower", "whale", "world"
+    };
+    
     std::random_device rd;
     std::mt19937 g(rd());
-    std::shuffle(digits.begin(), digits.end(), g);
+    std::uniform_int_distribution<> dis(0, words.size() - 1);
     
-    std::string secret = "";
-    for (int i = 0; i < SECRET_LENGTH; i++) {
-        secret += std::to_string(digits[i]);
-    }
-    return secret;
+    return words[dis(g)];
 }
 
 bool Game::add_player(const std::string& login) {
@@ -43,11 +47,16 @@ bool Game::remove_player(const std::string& login) {
     
     for (int i = idx; i < data->player_count - 1; i++) {
         strcpy(data->players[i], data->players[i + 1]);
-        strcpy(data->secrets[i], data->secrets[i + 1]);
         data->attempts[i] = data->attempts[i + 1];
         data->finished[i] = data->finished[i + 1];
     }
     data->player_count--;
+    
+    if (data->winner_index == idx) {
+        data->winner_index = -1;
+    } else if (data->winner_index > idx) {
+        data->winner_index--;
+    }
     
     if (data->player_count == 0) {
         data->used = false;
@@ -67,14 +76,16 @@ bool Game::can_start() const {
 void Game::start_game() {
     if (!can_start()) return;
     
+    std::string secret = generate_secret();
+    strncpy(data->secret, secret.c_str(), SECRET_LENGTH);
+    data->secret[SECRET_LENGTH] = '\0';
+    
     for (int i = 0; i < data->player_count; i++) {
-        std::string secret = generate_secret();
-        strncpy(data->secrets[i], secret.c_str(), SECRET_LENGTH);
-        data->secrets[i][SECRET_LENGTH] = '\0';
         data->attempts[i] = 0;
         data->finished[i] = false;
     }
     
+    data->winner_index = -1;
     data->state = GAME_ACTIVE;
     data->start_time = time(nullptr);
 }
@@ -92,13 +103,7 @@ bool Game::is_valid_guess(const std::string& guess) const {
     if (guess.length() != SECRET_LENGTH) return false;
     
     for (char c : guess) {
-        if (!isdigit(c)) return false;
-    }
-    
-    for (size_t i = 0; i < guess.length(); i++) {
-        for (size_t j = i + 1; j < guess.length(); j++) {
-            if (guess[i] == guess[j]) return false;
-        }
+        if (!islower(c) || !isalpha(c)) return false;
     }
     
     return true;
@@ -138,33 +143,30 @@ std::string Game::make_guess(const std::string& player, const std::string& guess
     }
     
     if (!is_valid_guess(guess)) {
-        return "ERROR: Invalid guess. Must be 4 unique digits";
+        return "ERROR: Invalid guess. Must be a 5-letter word in lowercase";
     }
     
     data->attempts[idx]++;
     
-    std::string secret = std::string(data->secrets[idx]);
+    std::string secret = std::string(data->secret);
     auto [bulls, cows] = calculate_bulls_and_cows(secret, guess);
     
     std::ostringstream oss;
-    oss << "Bulls: " << bulls << ", Cows: " << cows;
+    oss << "Attempt #" << data->attempts[idx] << " - Bulls: " << bulls << ", Cows: " << cows;
     
     if (bulls == SECRET_LENGTH) {
         data->finished[idx] = true;
-        oss << "\n🎉 CONGRATULATIONS! You guessed the number " << secret 
-            << " in " << data->attempts[idx] << " attempts!";
         
-        bool all_finished = true;
-        for (int i = 0; i < data->player_count; i++) {
-            if (!data->finished[i]) {
-                all_finished = false;
-                break;
-            }
-        }
-        
-        if (all_finished) {
+        if (data->winner_index == -1) {
+            data->winner_index = idx;
+            oss << "\n🎉 CONGRATULATIONS! You are the WINNER! You guessed the word: \"" << secret 
+                << "\" in " << data->attempts[idx] << " attempts!";
+            
             data->state = GAME_FINISHED;
             data->end_time = time(nullptr);
+        } else {
+            oss << "\nYou guessed the word \"" << secret << "\", but " 
+                << data->players[data->winner_index] << " was faster!";
         }
     }
     
@@ -197,10 +199,17 @@ std::string Game::get_status() const {
     for (int i = 0; i < data->player_count; i++) {
         oss << "  - " << data->players[i] 
             << " (attempts: " << data->attempts[i];
-        if (data->finished[i]) {
-            oss << ", FINISHED ✓";
+        if (i == data->winner_index) {
+            oss << ", 🏆 WINNER! ✓";
+        } else if (data->finished[i]) {
+            oss << ", finished";
         }
         oss << ")\n";
+    }
+    
+    if (data->state == GAME_FINISHED && data->winner_index >= 0) {
+        oss << "\n🏆 Winner: " << data->players[data->winner_index] 
+            << " guessed the word in " << data->attempts[data->winner_index] << " attempts!";
     }
     
     return oss.str();

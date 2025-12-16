@@ -14,3 +14,15 @@ Makefile
 *.swo
 *~
 OS_CP/
+
+test.sh
+test_comprehensive.sh
+test_game_play.sh
+test_two_players.sh
+demo_competition.sh
+*.log
+/tmp/*.log
+
+.vscode/
+.cache/
+compile_commands.json

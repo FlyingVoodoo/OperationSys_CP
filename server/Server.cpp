@@ -179,6 +179,7 @@ int Server::create_game(const std::string& game_name, const std::string& creator
     gdata->player_count = 0;
     gdata->max_players = max_players;
     gdata->state = GAME_WAITING;
+    gdata->winner_index = -1;
     gdata->start_time = 0;
     gdata->end_time = 0;
     

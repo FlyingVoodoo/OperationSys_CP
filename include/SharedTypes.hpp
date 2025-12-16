@@ -11,7 +11,7 @@ constexpr size_t LOGIN_MAX = 32;
 constexpr size_t CMD_MAX = 256;
 constexpr size_t RESP_MAX = 512;
 
-constexpr int SECRET_LENGTH = 4;
+constexpr int SECRET_LENGTH = 5;
 constexpr int MAX_GAMES = 16;
 
 enum GameState : uint8_t {
@@ -28,10 +28,11 @@ struct GameData {
     int max_players;
     GameState state;
     
-    char secrets[MAX_CLIENTS][SECRET_LENGTH + 1];
+    char secret[SECRET_LENGTH + 1];
     
     int attempts[MAX_CLIENTS];
     bool finished[MAX_CLIENTS];
+    int winner_index;
     
     time_t start_time;
     time_t end_time;

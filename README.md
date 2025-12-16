@@ -1,1 +1,1 @@
-# CP_OS_MAI
+# CP_OS_MAI - Bulls and Cows Game

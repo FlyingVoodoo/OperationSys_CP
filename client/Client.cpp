@@ -42,16 +42,21 @@ bool Client::enqueue_message(const Message& m) {
 }
 
 bool Client::wait_for_response(std::string &out, int timeout_ms) {
-    ClientSlot* slot = my_slot();
-    if (!slot) return false;
-    
-    pthread_mutex_lock(&root->mutex);
-    
     struct timespec ts;
     struct timeval tv;
     gettimeofday(&tv, nullptr);
     ts.tv_sec = tv.tv_sec + timeout_ms / 1000;
     ts.tv_nsec = tv.tv_usec * 1000 + (timeout_ms % 1000) * 1000000;
+    
+    ClientSlot* slot = nullptr;
+    for (int i = 0; i < 100 && !slot; i++) {
+        usleep(10000);
+        slot = my_slot();
+    }
+    
+    if (!slot) return false;
+    
+    pthread_mutex_lock(&root->mutex);
     
     while (!slot->has_response) {
         int ret = pthread_cond_timedwait(&slot->cond, &root->mutex, &ts);
@@ -99,7 +104,10 @@ void Client::show_main_menu() {
     std::cout << "Choice: ";
     
     std::string choice;
-    std::getline(std::cin, choice);
+    if (!std::getline(std::cin, choice)) {
+        std::cout << "\nInput stream closed. Exiting..." << std::endl;
+        exit(0);
+    }
     
     if (choice == "1") {
         cmd_list_games();
@@ -116,13 +124,17 @@ void Client::show_main_menu() {
 
 void Client::show_game_menu() {
     std::cout << "\n=== Game Menu ===" << std::endl;
-    std::cout << "1. Make guess (enter 4-digit number)" << std::endl;
+    std::cout << "1. Make guess (enter 5-letter word)" << std::endl;
     std::cout << "2. Game status" << std::endl;
     std::cout << "3. Leave game" << std::endl;
     std::cout << "Choice: ";
     
     std::string choice;
-    std::getline(std::cin, choice);
+    if (!std::getline(std::cin, choice)) {
+        std::cout << "\nInput stream closed. Leaving game..." << std::endl;
+        cmd_leave_game();
+        exit(0);
+    }
     
     if (choice == "1") {
         cmd_guess();
@@ -130,13 +142,18 @@ void Client::show_game_menu() {
         cmd_game_status();
     } else if (choice == "3") {
         cmd_leave_game();
-    } else if (choice.length() == 4 && isdigit(choice[0])) {
+    } else if (choice.length() == 5 && isalpha(choice[0])) {
+        std::string guess = choice;
+        for (char& c : guess) {
+            c = tolower(c);
+        }
+        
         Message m;
         m.used = true;
         strncpy(m.from, login.c_str(), LOGIN_MAX - 1);
         strcpy(m.to, "server");
         m.type = MSG_GUESS;
-        strncpy(m.payload, choice.c_str(), CMD_MAX - 1);
+        strncpy(m.payload, guess.c_str(), CMD_MAX - 1);
         
         enqueue_message(m);
         
@@ -274,9 +291,13 @@ void Client::cmd_find_game() {
 }
 
 void Client::cmd_guess() {
-    std::cout << "Enter your guess (4 unique digits): ";
+    std::cout << "Enter your guess (5-letter word, lowercase): ";
     std::string guess;
     std::getline(std::cin, guess);
+    
+    for (char& c : guess) {
+        c = tolower(c);
+    }
     
     Message m;
     m.used = true;
